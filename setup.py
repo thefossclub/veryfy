@@ -2,7 +2,6 @@
 
 import subprocess
 import sys
-import os
 import secrets
 import shutil
 from pathlib import Path
@@ -210,3 +209,62 @@ def install_deps(name, directory):
         die(f"bun install failed in {directory}/")
 
     ok(f"{name} dependencies installed")
+
+
+def print_next_steps(cfg):
+    p = cfg["backend_port"]
+    heading("All done — next steps")
+
+    print(f"""
+  1. Start MailHog (separate terminal):
+       {BOLD}MailHog{RESET}
+
+  2. Start the backend (separate terminal):
+       {BOLD}cd backend && bun run dev{RESET}
+
+  3. Create an event:
+       {BOLD}curl -X POST http://localhost:{p}/events \\
+         -H "Content-Type: application/json" \\
+         -d '{{"name":"Your Event Name","date":"2026-04-30"}}'{RESET}
+
+   4. Place your attendees CSV in the repo root as {BOLD}attendees.csv{RESET}
+        Expected columns:
+            {DIM}name, email, university, profile_link{RESET}
+
+  5. Import attendees (use the UUID returned above as EVENT_ID):
+       {BOLD}curl -X POST http://localhost:{p}/attendees/import \\
+         -F "eventId=EVENT_ID" \\
+         -F "csv=@attendees.csv"{RESET}
+
+  6. View emails in MailHog:
+       {BOLD}http://localhost:8025{RESET}
+
+  7. Get your LAN IP for the Expo app:
+       {BOLD}ip a{RESET}
+     Then set in expo-app/constants/config.ts:
+       {BOLD}export const BASE_URL = "http://<your-ip>:{p}";{RESET}
+
+  8. Start the Expo app:
+       {BOLD}cd expo-app && npx expo start{RESET}
+""")
+
+
+def main():
+    print(f"\n{BOLD}veryfy — setup{RESET}")
+    dim("run this from the repo root\n")
+
+    if not Path("backend").is_dir() and not Path("expo-app").is_dir():
+        die("Neither backend/ nor expo-app/ found. Are you in the repo root?")
+
+    check_prerequisites()
+    cfg = collect_config()
+    setup_postgres(cfg)
+    load_schema(cfg)
+    write_env(cfg)
+    install_deps("backend", "backend")
+    install_deps("Expo app", "expo-app")
+    print_next_steps(cfg)
+
+
+if __name__ == "__main__":
+    main()
