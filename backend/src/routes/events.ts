@@ -12,6 +12,11 @@ interface EventRow extends QueryResultRow {
   id: string;
   name: string;
   date: string;
+  created_at: string | Date;
+}
+
+function toIsoString(value: string | Date): string {
+  return value instanceof Date ? value.toISOString() : value;
 }
 
 function isCreateEventBody(value: unknown): value is CreateEventBody {
@@ -28,6 +33,23 @@ function isIsoDate(date: string): boolean {
 }
 
 const events = new Hono();
+
+events.get("/", async (c) => {
+  const result = await query<EventRow>(
+    `SELECT id, name, date::text, created_at
+     FROM events
+     ORDER BY date DESC, created_at DESC`,
+  );
+
+  return c.json(
+    result.rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      date: row.date,
+      createdAt: toIsoString(row.created_at),
+    })),
+  );
+});
 
 events.post("/", async (c) => {
   const body = await c.req.json<unknown>().catch(() => null);
@@ -50,11 +72,25 @@ events.post("/", async (c) => {
   const result = await query<EventRow>(
     `INSERT INTO events (name, date)
      VALUES ($1, $2)
-     RETURNING id, name, date::text`,
+     RETURNING id, name, date::text, created_at`,
     [name, date],
   );
 
-  return c.json(result.rows[0], 201);
+  const event = result.rows[0];
+
+  if (!event) {
+    return c.json({ error: "Failed to create event" }, 500);
+  }
+
+  return c.json(
+    {
+      id: event.id,
+      name: event.name,
+      date: event.date,
+      createdAt: toIsoString(event.created_at),
+    },
+    201,
+  );
 });
 
 export default events;

@@ -12,6 +12,7 @@ import { BASE_URL } from "../constants/config";
 import type { CheckinResponse } from "../types/checkin";
 
 interface ScanScreenProps {
+  onBack: () => void;
   onResult: (result: CheckinResponse) => void;
 }
 
@@ -54,7 +55,7 @@ function isCheckinResponse(payload: unknown): payload is CheckinResponse {
   );
 }
 
-export default function ScanScreen({ onResult }: ScanScreenProps) {
+export default function ScanScreen({ onBack, onResult }: ScanScreenProps) {
   const [permission, requestPermission] = useCameraPermissions();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -137,6 +138,9 @@ export default function ScanScreen({ onResult }: ScanScreenProps) {
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
+        <Pressable style={styles.backButton} onPress={onBack}>
+          <Text style={styles.backButtonLabel}>Back</Text>
+        </Pressable>
         <Text style={styles.eyebrow}>Event Check-In</Text>
         <Text style={styles.title}>Scan attendee badge</Text>
         <Text style={styles.description}>
@@ -181,6 +185,21 @@ const styles = StyleSheet.create({
   header: {
     gap: 10,
     marginBottom: 20,
+  },
+  backButton: {
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: "#fff7ed",
+    borderColor: "#d8c7aa",
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  backButtonLabel: {
+    color: "#102a1f",
+    fontSize: 14,
+    fontWeight: "700",
   },
   eyebrow: {
     color: "#7f5539",

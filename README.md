@@ -88,6 +88,9 @@ HMAC_SECRET=change_this_to_a_random_secret
 SMTP_HOST=localhost
 SMTP_PORT=1025
 SMTP_FROM=noreply@event.local
+AUTO_IMPORT_ATTENDEES_CSV=true
+AUTO_IMPORT_EVENT_NAME=CSV Imported Event
+AUTO_IMPORT_EVENT_DATE=2026-04-30
 PORT=3000
 ```
 
@@ -179,7 +182,7 @@ curl -X POST http://localhost:3000/events \
 Example response:
 
 ```json
-{"id":"08c02b88-e318-4c65-a420-67049bd3354c","name":"Launch Night","date":"2026-04-30"}
+{"id":"08c02b88-e318-4c65-a420-67049bd3354c","name":"Launch Night","date":"2026-04-30","createdAt":"2026-03-14T10:30:00.000Z"}
 ```
 
 Copy the returned `id`. You need the real UUID in later commands.
@@ -194,16 +197,19 @@ Important:
 From the repo root:
 
 ```bash
-printf "name,email\nAda Lovelace,ada@example.com\nGrace Hopper,grace@example.com\n" > attendees.csv
+printf "name,email,university,profile_link\nAda Lovelace,ada@example.com,University of London,https://linkedin.com/in/ada\nGrace Hopper,grace@example.com,Yale University,https://linkedin.com/in/grace\n" > attendees.csv
 ```
 
 CSV format must be:
 
 ```csv
-name,email
-Ada Lovelace,ada@example.com
-Grace Hopper,grace@example.com
+name,email,university,profile_link
+Ada Lovelace,ada@example.com,University of London,https://linkedin.com/in/ada
+Grace Hopper,grace@example.com,Yale University,https://linkedin.com/in/grace
 ```
+
+When the backend starts, it now auto-syncs repo-root [attendees.csv](/home/v8v88v8v88/Projects/veryfy/attendees.csv) into the default event from `AUTO_IMPORT_EVENT_NAME` and `AUTO_IMPORT_EVENT_DATE`.
+Existing attendees for the same event and email are skipped, so restarts do not duplicate rows.
 
 ## 8. Import attendees
 
@@ -218,7 +224,7 @@ curl -X POST http://localhost:3000/attendees/import \
 Expected response:
 
 ```json
-{"imported":2}
+{"imported":2,"skipped":0}
 ```
 
 What this does:
@@ -275,13 +281,28 @@ npx expo start
 ```
 
 Open the app on a device or emulator and scan the QR code from MailHog.
+The app now opens in a mode selector, so organisers can switch between `Scanner` and `Admin list`.
 
 ## 11. Check attendee status
+
+List all events for the admin picker:
+
+```bash
+curl http://localhost:3000/events
+```
 
 List all attendees for an event:
 
 ```bash
 curl http://localhost:3000/attendees/EVENT_ID
+```
+
+Each attendee now includes `university`, `profileLink`, `checkedIn`, and `checkedInAt` in the response.
+
+Resend QR emails for an event if MailHog was restarted or its inbox was cleared:
+
+```bash
+curl -X POST http://localhost:3000/attendees/EVENT_ID/resend
 ```
 
 Preview or reprint a QR code:

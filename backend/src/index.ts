@@ -5,6 +5,7 @@ import attendees from "./routes/attendees";
 import checkin from "./routes/checkin";
 import events from "./routes/events";
 import qr from "./routes/qr";
+import { bootstrapAttendeesFromCsv } from "./services/bootstrap";
 
 const app = new Hono();
 
@@ -37,6 +38,10 @@ app.onError((error, c) => {
 });
 
 const port = Number(Bun.env.PORT ?? "3000");
+
+void bootstrapAttendeesFromCsv().catch((error) => {
+  console.error("[bootstrap] failed to import attendees.csv", error);
+});
 
 export { app };
 

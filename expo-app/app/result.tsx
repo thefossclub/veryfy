@@ -4,6 +4,7 @@ import StatusCard from "../components/StatusCard";
 import type { CheckinResponse } from "../types/checkin";
 
 interface ResultScreenProps {
+  onDone: () => void;
   result: CheckinResponse;
   onScanAgain: () => void;
 }
@@ -19,7 +20,7 @@ function getHeading(status: CheckinResponse["status"]): string {
   }
 }
 
-export default function ResultScreen({ result, onScanAgain }: ResultScreenProps) {
+export default function ResultScreen({ onDone, result, onScanAgain }: ResultScreenProps) {
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
@@ -35,9 +36,14 @@ export default function ResultScreen({ result, onScanAgain }: ResultScreenProps)
         status={result.status}
       />
 
-      <Pressable style={styles.button} onPress={onScanAgain}>
-        <Text style={styles.buttonLabel}>Scan next attendee</Text>
-      </Pressable>
+      <View style={styles.actions}>
+        <Pressable style={styles.button} onPress={onScanAgain}>
+          <Text style={styles.buttonLabel}>Scan next attendee</Text>
+        </Pressable>
+        <Pressable style={styles.secondaryButton} onPress={onDone}>
+          <Text style={styles.secondaryButtonLabel}>Back to modes</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -74,6 +80,22 @@ const styles = StyleSheet.create({
   },
   buttonLabel: {
     color: "#fff7ed",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  actions: {
+    gap: 12,
+  },
+  secondaryButton: {
+    alignItems: "center",
+    backgroundColor: "#fff7ed",
+    borderColor: "#d8c7aa",
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingVertical: 16,
+  },
+  secondaryButtonLabel: {
+    color: "#102a1f",
     fontSize: 16,
     fontWeight: "700",
   },
