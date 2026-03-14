@@ -1,18 +1,38 @@
 import nodemailer from "nodemailer";
 
+const isDev = Bun.env.NODE_ENV !== "production";
+
 const smtpHost = Bun.env.SMTP_HOST;
 const smtpPort = Bun.env.SMTP_PORT;
 const smtpFrom = Bun.env.SMTP_FROM;
+const smtpUser = Bun.env.SMTP_USER;
+const smtpPass = Bun.env.SMTP_PASS;
 
 if (!smtpHost || !smtpPort || !smtpFrom) {
   throw new Error("SMTP_HOST, SMTP_PORT, and SMTP_FROM must be set");
 }
 
-const transporter = nodemailer.createTransport({
-  host: smtpHost,
-  port: Number(smtpPort),
-  secure: false,
-});
+if (!isDev && (!smtpUser || !smtpPass)) {
+  throw new Error("SMTP_USER and SMTP_PASS must be set in production");
+}
+
+const transporter = nodemailer.createTransport(
+  isDev
+    ? {
+        host: smtpHost,
+        port: Number(smtpPort),
+        secure: false,
+      }
+    : {
+        host: smtpHost,
+        port: Number(smtpPort),
+        secure: true,
+        auth: {
+          user: smtpUser,
+          pass: smtpPass,
+        },
+      },
+);
 
 export async function sendQREmail(to: string, name: string, qrBase64: string): Promise<void> {
   const qrDataUrl = `data:image/png;base64,${qrBase64}`;
