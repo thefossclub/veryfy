@@ -21,6 +21,12 @@ interface ImportAttendeesInput {
   rows: CsvAttendeeRow[];
 }
 
+function isSendEmailsEnabled(): boolean {
+  const value = Bun.env.SEND_EMAILS?.trim().toLowerCase();
+  if (!value) return true;
+  return value !== "false" && value !== "0" && value !== "no";
+}
+
 export async function importAttendeesForEvent({
   client,
   eventId,
@@ -28,6 +34,7 @@ export async function importAttendeesForEvent({
 }: ImportAttendeesInput): Promise<ImportAttendeesResult> {
   let imported = 0;
   let skipped = 0;
+  const sendEmails = isSendEmailsEnabled();
 
   for (const row of rows) {
     const existing = await client.query<ExistingAttendeeRow>(
@@ -45,7 +52,7 @@ export async function importAttendeesForEvent({
 
     const attendeeId = randomUUID();
     const payload = buildQrPayload(attendeeId, eventId);
-    const qrBase64 = await generateQRImage(payload);
+    const qrBase64 = sendEmails ? await generateQRImage(payload) : null;
 
     await client.query(
       `INSERT INTO attendees (id, event_id, name, email, university, profile_link, qr_token, email_sent)
@@ -53,9 +60,10 @@ export async function importAttendeesForEvent({
       [attendeeId, eventId, row.name, row.email, row.university, row.profileLink, payload.hmac],
     );
 
-    await sendQREmail(row.email, row.name, qrBase64);
-
-    await client.query("UPDATE attendees SET email_sent = true WHERE id = $1", [attendeeId]);
+    if (sendEmails && qrBase64) {
+      await sendQREmail(row.email, row.name, qrBase64);
+      await client.query("UPDATE attendees SET email_sent = true WHERE id = $1", [attendeeId]);
+    }
     imported += 1;
   }
 

@@ -15,8 +15,8 @@ Everything runs locally. No external services are required.
 - [Project structure](#project-structure)
 - [Prerequisites](#prerequisites)
 - [Setup](#setup)
-  - [Automated setup](#automated-setup)
-  - [Manual setup](#manual-setup)
+    - [Automated setup](#automated-setup)
+    - [Manual setup](#manual-setup)
 - [Environment variables](#environment-variables)
 - [Database schema](#database-schema)
 - [API reference](#api-reference)
@@ -266,6 +266,7 @@ All variables are read from `backend/.env` via `Bun.env`.
 | `SMTP_FROM`                 | yes             | The sender address that appears in outgoing emails.                                                                                                   |
 | `SMTP_USER`                 | production only | SMTP login username, usually the sender email address.                                                                                                |
 | `SMTP_PASS`                 | production only | SMTP login password. If the password contains special characters, wrap it in single quotes in `.env`.                                                 |
+| `SEND_EMAILS`               | no              | If `true`, send QR emails during import. Set to `false` to import attendees without sending emails. Default: `true`.                               |
 | `AUTO_IMPORT_ATTENDEES_CSV` | no              | If `true`, the backend imports `attendees.csv` from the repo root on startup. Existing rows are skipped. Set to `false` to disable. Default: `false`. |
 | `AUTO_IMPORT_EVENT_NAME`    | no              | Name of the event created during auto-import. Default: `CSV Imported Event`.                                                                          |
 | `AUTO_IMPORT_EVENT_DATE`    | no              | Date of the event created during auto-import. Format: `YYYY-MM-DD`. Default: today.                                                                   |
