@@ -119,6 +119,7 @@ def collect_config():
         cfg["smtp_pass"] = ""
 
     cfg["backend_port"] = ask("Backend port", "3000")
+    cfg["send_emails"] = ask("Send emails on import? (true/false)", "true").lower()
 
     return cfg
 
@@ -207,10 +208,13 @@ def write_env(cfg):
         f"SMTP_FROM={cfg['smtp_from']}\n"
         f"SMTP_USER={cfg['smtp_user']}\n"
         f"SMTP_PASS={cfg['smtp_pass']}\n"
+        f"SEND_EMAILS={cfg['send_emails']}\n"
+        f"AUTO_IMPORT_ATTENDEES_CSV=false\n"
         f"PORT={cfg['backend_port']}\n"
     )
 
     ok(f"Wrote {env_file}")
+    info(f"AUTO_IMPORT_ATTENDEES_CSV is set to {BOLD}false{RESET}")
     dim("  This file is git-ignored, Never commit it")
 
 
