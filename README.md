@@ -2,63 +2,117 @@
 
 Local-first event check-in system:
 
-- organiser creates an event
-- organiser imports attendees from CSV
-- backend generates HMAC-signed QR payloads
-- backend emails QR codes through MailHog
-- volunteers scan QR codes in the Expo app
-- backend records check-ins in PostgreSQL
+- The organiser imports attendees from a CSV
+- The backend generates HMAC-signed QR codes and emails them to each attendee,
+- Volunteers scan QR codes at the door using the Expo app. Check-ins are recorded in PostgreSQL.
 
 Everything runs locally. No external services are required.
 
+## Contents
+
+- [Stack](#stack)
+- [Modes](#modes)
+- [Project structure](#project-structure)
+- [Prerequisites](#prerequisites)
+- [Setup](#setup)
+  - [Automated setup](#automated-setup)
+  - [Manual setup](#manual-setup)
+- [Environment variables](#environment-variables)
+- [Database schema](#database-schema)
+- [API reference](#api-reference)
+- [Common issues](#common-issues)
+- [Git](#git)
+- [Notes](#notes)
+
 ## Stack
 
-- Backend: Bun + Hono
-- Database: PostgreSQL
-- Email: MailHog
-- Mobile: Expo + React Native + `expo-camera`
+- **Backend:** Bun + Hono, serving a REST API on port 3000
+- **Database:** PostgreSQL, storing events, attendees, and check-ins
+- **Email:** MailHog (development) or any SMTP server such as Spacemail (production)
+- **Mobile:** Expo + React Native, using `expo-camera` for QR scanning
 
-## Prerequisites
+## Modes
 
-Install these first:
+The system runs in one of two modes, controlled by `NODE_ENV` in `backend/.env`.
 
-- Bun
-- PostgreSQL
-- Go or Docker for running MailHog
-- Node.js or Bun for the Expo app
+**Development** (`NODE_ENV=development`) uses MailHog as a local SMTP sink.
+Emails are not delivered to real inboxes. You can inspect them at
+`http://localhost:8025`. No SMTP credentials are required.
+
+**Production** (`NODE_ENV=production`) uses a real SMTP server. You must
+provide `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, and `SMTP_PASS` in `.env`.
+Emails are delivered to real attendee inboxes.
 
 ## Project structure
 
-```text
+```
 veryfy/
 ├── backend/
+│   ├── src/
+│   │   ├── routes/        # Hono route handlers
+│   │   ├── services/      # business logic (import, mailer, QR generation)
+│   │   ├── utils/
+│   │   ├── db.ts          # PostgreSQL connection pool
+│   │   ├── index.ts       # server entry point
+│   │   └── schema.sql     # database schema
+│   ├── .env.example
+│   └── index.ts
 ├── expo-app/
+│   ├── app/               # screens (home, scan, result, admin)
+│   ├── components/
+│   ├── constants/
+│   │   └── config.ts      # BASE_URL pointing at the backend
+│   └── types/
+├── setup.py               # automated setup script
 └── README.md
 ```
 
-## 1. PostgreSQL setup
+## Prerequisites
 
-Make sure PostgreSQL is running on `localhost:5432`.
+The following must be installed before setup.
 
-If you do not already have the project database and user, create them.
+| Tool       | Purpose                                    |
+| ---------- | ------------------------------------------ |
+| Bun        | runs the backend and installs dependencies |
+| PostgreSQL | stores events, attendees, and check-ins    |
+| MailHog    | local SMTP sink for development mode       |
+| Node.js    | required by Expo tooling                   |
 
-### Option A: you know the `postgres` password
+## Setup
+
+There are two ways to set up the project: automated (recommended) or manual.
+
+---
+
+### Automated setup
+
+The setup script handles PostgreSQL user and database creation, schema loading,
+`.env` generation, and dependency installation. It prompts for input at each
+step and shows defaults in brackets.
+
+From the repo root:
 
 ```bash
-psql -h localhost -U postgres
+python3 setup.py
 ```
 
-Then run:
+The script will ask whether you are setting up for development or production and
+adjust the SMTP configuration accordingly.
 
-```sql
-CREATE USER eventuser WITH PASSWORD 'eventpass';
-CREATE DATABASE eventdb OWNER eventuser;
-\q
+---
+
+### Manual setup
+
+#### 1. PostgreSQL
+
+Make sure PostgreSQL is running:
+
+```bash
+sudo systemctl start postgresql
 ```
 
-### Option B: you do not know the `postgres` password
-
-Use the local postgres system account:
+Create the database user and database. If you do not know the `postgres`
+system password, use the local system account instead:
 
 ```bash
 sudo -iu postgres psql
@@ -72,34 +126,7 @@ CREATE DATABASE eventdb OWNER eventuser;
 \q
 ```
 
-## 2. Backend environment
-
-From the repo root:
-
-```bash
-cp backend/.env.example backend/.env
-```
-
-Expected contents of `backend/.env`:
-
-```env
-DATABASE_URL=postgres://eventuser:eventpass@localhost:5432/eventdb
-HMAC_SECRET=change_this_to_a_random_secret
-SMTP_HOST=localhost
-SMTP_PORT=1025
-SMTP_FROM=noreply@event.local
-AUTO_IMPORT_ATTENDEES_CSV=true
-AUTO_IMPORT_EVENT_NAME=CSV Imported Event
-AUTO_IMPORT_EVENT_DATE=2026-04-30
-PORT=3000
-```
-
-Important:
-
-- the backend reads env vars from `Bun.env`
-- if `DATABASE_URL is not set`, you forgot to create `backend/.env`
-
-## 3. Load the database schema
+#### 2. Load the schema
 
 From the repo root:
 
@@ -107,49 +134,35 @@ From the repo root:
 psql -h localhost -U eventuser -d eventdb -f backend/src/schema.sql
 ```
 
-If you are already inside `backend/`, use this path instead:
+#### 3. Backend environment
+
+Copy the example file:
 
 ```bash
-psql -h localhost -U eventuser -d eventdb -f src/schema.sql
+cp backend/.env.example backend/.env
 ```
 
-Do not use `backend/src/schema.sql` while already inside `backend/`.
+Edit `backend/.env` and fill in the values. See the
+[Environment variables](#environment-variables) section below for a description
+of each variable.
 
-## 4. Start MailHog
-
-### Option A: with Go
-
-Install once:
+#### 4. Start MailHog (development only)
 
 ```bash
-go install github.com/mailhog/MailHog@latest
+mailhog
 ```
 
-Run MailHog:
+MailHog listens on `localhost:1025` for SMTP and exposes a web UI at
+`http://localhost:8025`.
 
-```bash
-~/go/bin/MailHog
-```
-
-### Option B: with Docker
+If MailHog is not on your PATH, find it with `which mailhog` or run it via
+Docker:
 
 ```bash
 docker run --rm -p 1025:1025 -p 8025:8025 mailhog/mailhog
 ```
 
-MailHog URLs:
-
-- SMTP: `localhost:1025`
-- UI: `http://localhost:8025`
-
-Important:
-
-- `MailHog: command not found` means it is not installed or not on your `PATH`
-- if you used `go install`, run `~/go/bin/MailHog`
-
-## 5. Start the backend
-
-Open a new terminal:
+#### 5. Install dependencies and start the backend
 
 ```bash
 cd backend
@@ -157,21 +170,14 @@ bun install
 bun run dev
 ```
 
-Verify the API:
+Verify the server is running:
 
 ```bash
 curl http://localhost:3000/
+# {"status":"ok","service":"event-checkin"}
 ```
 
-Expected response:
-
-```json
-{"status":"ok","service":"event-checkin"}
-```
-
-## 6. Create an event
-
-From the repo root:
+#### 6. Create an event
 
 ```bash
 curl -X POST http://localhost:3000/events \
@@ -179,41 +185,30 @@ curl -X POST http://localhost:3000/events \
   -d '{"name":"Launch Night","date":"2026-04-30"}'
 ```
 
-Example response:
+Response:
 
 ```json
-{"id":"08c02b88-e318-4c65-a420-67049bd3354c","name":"Launch Night","date":"2026-04-30","createdAt":"2026-03-14T10:30:00.000Z"}
+{
+    "id": "08c02b88-e318-4c65-a420-67049bd3354c",
+    "name": "Launch Night",
+    "date": "2026-04-30",
+    "createdAt": "2026-03-14T10:30:00.000Z"
+}
 ```
 
-Copy the returned `id`. You need the real UUID in later commands.
+Copy the `id`. It is required for the import step.
 
-Important:
+#### 7. Prepare the attendee CSV
 
-- do not send `NEW_EVENT_ID_HERE` literally
-- replace placeholders with the actual event id from the response
-
-## 7. Create the attendee CSV
-
-From the repo root:
-
-```bash
-printf "name,email,university,profile_link\nAda Lovelace,ada@example.com,University of London,https://linkedin.com/in/ada\nGrace Hopper,grace@example.com,Yale University,https://linkedin.com/in/grace\n" > attendees.csv
-```
-
-CSV format must be:
+Place a file named `attendees.csv` in the repo root. The expected columns are:
 
 ```csv
 name,email,university,profile_link
-Ada Lovelace,ada@example.com,University of London,https://linkedin.com/in/ada
-Grace Hopper,grace@example.com,Yale University,https://linkedin.com/in/grace
 ```
 
-When the backend starts, it now auto-syncs repo-root [attendees.csv](/home/v8v88v8v88/Projects/veryfy/attendees.csv) into the default event from `AUTO_IMPORT_EVENT_NAME` and `AUTO_IMPORT_EVENT_DATE`.
-Existing attendees for the same event and email are skipped, so restarts do not duplicate rows.
+#### 8. Import attendees
 
-## 8. Import attendees
-
-Replace `EVENT_ID` with the real UUID returned by `POST /events`.
+Replace `EVENT_ID` with the UUID from step 6:
 
 ```bash
 curl -X POST http://localhost:3000/attendees/import \
@@ -224,55 +219,28 @@ curl -X POST http://localhost:3000/attendees/import \
 Expected response:
 
 ```json
-{"imported":2,"skipped":0}
+{"imported":n,"skipped":0}
 ```
 
-What this does:
+This inserts each attendee, generates a signed QR payload, and sends an email.
+Rows with a duplicate email for the same event are skipped. The entire insert
+batch is transactional — if any row fails validation, nothing is written.
 
-- inserts attendees
-- generates signed QR payloads
-- sends attendee emails through MailHog
+#### 9. Start the Expo app
 
-Important:
-
-- this import is transactional
-- if one row fails, the attendee insert batch is rolled back
-- email sending happens during the import request, so MailHog must already be running
-
-## 9. Check MailHog
-
-Open:
-
-```text
-http://localhost:8025
-```
-
-You should see the attendee emails there.
-
-## 10. Start the Expo app
-
-This project is set up for Expo Go compatibility on a physical device.
-If you upgrade Expo SDK later, confirm that your installed Expo Go app supports that SDK first.
-
-Find your LAN IP:
+Find your machine's LAN IP:
 
 ```bash
 ip a
 ```
 
-Then update [expo-app/constants/config.ts](/home/v8v88v8v88/Projects/veryfy/expo-app/constants/config.ts#L1) with your machine's IP:
+Update `expo-app/constants/config.ts`:
 
 ```ts
 export const BASE_URL = "http://192.168.x.x:3000";
 ```
 
-Use your real LAN IP, for example:
-
-```ts
-export const BASE_URL = "http://192.168.1.5:3000";
-```
-
-Then run:
+Then:
 
 ```bash
 cd expo-app
@@ -280,120 +248,181 @@ bun install
 npx expo start
 ```
 
-Open the app on a device or emulator and scan the QR code from MailHog.
-The app now opens in a mode selector, so organisers can switch between `Scanner` and `Admin list`.
+Scan the Expo QR code with the Expo Go app on your phone, or open an emulator.
 
-## 11. Check attendee status
+---
 
-List all events for the admin picker:
+## Environment variables
 
-```bash
-curl http://localhost:3000/events
-```
+All variables are read from `backend/.env` via `Bun.env`.
 
-List all attendees for an event:
+| Variable                    | Required        | Description                                                                                                                                           |
+| --------------------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`                  | yes             | `development` or `production`. Controls SMTP mode.                                                                                                    |
+| `DATABASE_URL`              | yes             | PostgreSQL connection string. Format: `postgres://user:pass@host:port/dbname`                                                                         |
+| `HMAC_SECRET`               | yes             | Secret key used to sign QR payloads. Use a long random string. Never commit this.                                                                     |
+| `SMTP_HOST`                 | yes             | SMTP server hostname. `localhost` for MailHog, `mail.spacemail.com` for Spacemail.                                                                    |
+| `SMTP_PORT`                 | yes             | SMTP port. `1025` for MailHog, `465` for SSL, `587` for STARTTLS.                                                                                     |
+| `SMTP_FROM`                 | yes             | The sender address that appears in outgoing emails.                                                                                                   |
+| `SMTP_USER`                 | production only | SMTP login username, usually the sender email address.                                                                                                |
+| `SMTP_PASS`                 | production only | SMTP login password. If the password contains special characters, wrap it in single quotes in `.env`.                                                 |
+| `AUTO_IMPORT_ATTENDEES_CSV` | no              | If `true`, the backend imports `attendees.csv` from the repo root on startup. Existing rows are skipped. Set to `false` to disable. Default: `false`. |
+| `AUTO_IMPORT_EVENT_NAME`    | no              | Name of the event created during auto-import. Default: `CSV Imported Event`.                                                                          |
+| `AUTO_IMPORT_EVENT_DATE`    | no              | Date of the event created during auto-import. Format: `YYYY-MM-DD`. Default: today.                                                                   |
+| `PORT`                      | no              | Port the backend listens on. Default: `3000`.                                                                                                         |
 
-```bash
-curl http://localhost:3000/attendees/EVENT_ID
-```
+---
 
-Each attendee now includes `university`, `profileLink`, `checkedIn`, and `checkedInAt` in the response.
+## Database schema
 
-Resend QR emails for an event if MailHog was restarted or its inbox was cleared:
+The schema is in `backend/src/schema.sql`. It uses the `pgcrypto` extension for
+UUID generation.
 
-```bash
-curl -X POST http://localhost:3000/attendees/EVENT_ID/resend
-```
+### events
 
-Preview or reprint a QR code:
+Stores each event. An event is the top-level container for attendees and
+check-ins.
 
-```bash
-curl http://localhost:3000/qr/ATTENDEE_ID --output attendee-qr.png
-```
+| Column       | Type        | Description                  |
+| ------------ | ----------- | ---------------------------- |
+| `id`         | UUID        | Primary key, auto-generated. |
+| `name`       | TEXT        | Event name.                  |
+| `date`       | DATE        | Event date.                  |
+| `created_at` | TIMESTAMPTZ | Row creation timestamp.      |
 
-Manual check-in request:
+### attendees
 
-```bash
-curl -X POST http://localhost:3000/checkin \
-  -H "Content-Type: application/json" \
-  -d '{"token":"{\"attendee_id\":\"ATTENDEE_ID\",\"event_id\":\"EVENT_ID\",\"hmac\":\"HMAC_HEX\"}"}'
-```
+One row per registered attendee per event.
+
+| Column         | Type        | Description                                                               |
+| -------------- | ----------- | ------------------------------------------------------------------------- |
+| `id`           | UUID        | Primary key, auto-generated.                                              |
+| `event_id`     | UUID        | Foreign key to `events`. Cascades on delete.                              |
+| `name`         | TEXT        | Attendee full name.                                                       |
+| `email`        | TEXT        | Attendee email address. Used for deduplication (case-insensitive).        |
+| `university`   | TEXT        | Optional. Attendee's institution.                                         |
+| `profile_link` | TEXT        | Optional. LinkedIn or similar profile URL.                                |
+| `qr_token`     | TEXT        | The HMAC hex string embedded in the QR code. Unique across all attendees. |
+| `email_sent`   | BOOLEAN     | Set to `true` after the QR email is successfully sent.                    |
+| `created_at`   | TIMESTAMPTZ | Row creation timestamp.                                                   |
+
+### checkins
+
+One row per completed check-in. The `UNIQUE` constraint on `attendee_id`
+prevents double check-ins at the database level.
+
+| Column          | Type        | Description                                             |
+| --------------- | ----------- | ------------------------------------------------------- |
+| `id`            | UUID        | Primary key, auto-generated.                            |
+| `attendee_id`   | UUID        | Foreign key to `attendees`. Unique. Cascades on delete. |
+| `checked_in_at` | TIMESTAMPTZ | Timestamp of the check-in.                              |
+
+Two indexes are defined: `attendees_event_id_idx` for fast attendee lookups by
+event, and `checkins_attendee_id_idx` for fast check-in lookups by attendee.
+
+---
+
+## API reference
+
+### Events
+
+| Method | Path      | Description                                                 |
+| ------ | --------- | ----------------------------------------------------------- |
+| `GET`  | `/events` | List all events.                                            |
+| `POST` | `/events` | Create an event. Body: `{"name":"...","date":"YYYY-MM-DD"}` |
+
+### Attendees
+
+| Method | Path                         | Description                                                        |
+| ------ | ---------------------------- | ------------------------------------------------------------------ |
+| `GET`  | `/attendees/:eventId`        | List all attendees for an event, including check-in status.        |
+| `POST` | `/attendees/import`          | Import attendees from a CSV. Form fields: `eventId`, `csv` (file). |
+| `POST` | `/attendees/:eventId/resend` | Resend QR emails for all attendees of an event.                    |
+
+### Check-in
+
+| Method | Path       | Description                                                      |
+| ------ | ---------- | ---------------------------------------------------------------- |
+| `POST` | `/checkin` | Verify a QR token and record a check-in. Body: `{"token":"..."}` |
+
+### Utilities
+
+| Method | Path              | Description                                         |
+| ------ | ----------------- | --------------------------------------------------- |
+| `GET`  | `/qr/:attendeeId` | Returns the QR code image for an attendee as a PNG. |
+
+---
 
 ## Common issues
 
+### `connect ECONNREFUSED 127.0.0.1:5432`
+
+PostgreSQL is not running.
+
+```bash
+sudo systemctl start postgresql
+```
+
 ### `password authentication failed for user "postgres"`
 
-You do not know the password for the `postgres` DB role.
-
-Use:
+Use the local system account instead of supplying a password:
 
 ```bash
 sudo -iu postgres psql
 ```
 
-### `fe_sendauth: no password supplied`
-
-You submitted an empty password. Enter the actual password or use the local postgres account.
-
-### `backend/src/schema.sql: No such file or directory`
-
-You were inside `backend/` and used a repo-root path.
-
-Use:
-
-```bash
-psql -h localhost -U eventuser -d eventdb -f src/schema.sql
-```
-
 ### `DATABASE_URL is not set`
 
-You did not create `backend/.env`.
-
-Fix:
+`backend/.env` does not exist. Create it:
 
 ```bash
 cp backend/.env.example backend/.env
 ```
 
-### `MailHog: command not found`
+### `backend/src/schema.sql: No such file or directory`
 
-Run MailHog with the full Go install path:
+You are inside `backend/` and used the repo-root path. Use the relative path:
 
 ```bash
-~/go/bin/MailHog
+psql -h localhost -U eventuser -d eventdb -f src/schema.sql
 ```
 
-or use Docker:
+### `MailHog: command not found`
+
+MailHog is not on your PATH. Either add the Go bin directory to your PATH or
+run it via Docker:
 
 ```bash
 docker run --rm -p 1025:1025 -p 8025:8025 mailhog/mailhog
 ```
 
-### `invalid input syntax for type uuid: "NEW_EVENT_ID_HERE"`
+### `535 authentication failed` from SMTP
 
-You pasted the placeholder string instead of the real event UUID.
+The SMTP credentials are wrong, or the password contains special characters
+that are being misread. Wrap the value in single quotes in `.env`:
 
-Replace it with the actual id returned by `POST /events`.
+```env
+SMTP_PASS='your"password'
+```
 
 ### Expo app cannot reach backend
 
-Usually one of these:
+- `BASE_URL` in `expo-app/constants/config.ts` still has a placeholder IP
+- The phone and the laptop are not on the same network
+- The backend is not running
 
-- `BASE_URL` still has the placeholder IP
-- your phone and laptop are not on the same network
-- backend is not running on port `3000`
+---
 
-## Git and first push
+## Git
 
-This repo includes a root [.gitignore](/home/v8v88v8v88/Projects/veryfy/.gitignore) to keep local files out of the first push.
-
-Before pushing, run:
+The root `.gitignore` excludes local files from commits. Before pushing, verify
+with:
 
 ```bash
 git status --short
 ```
 
-You should not commit:
+The following should not appear in the output:
 
 - `backend/.env`
 - `backend/node_modules`
@@ -401,20 +430,11 @@ You should not commit:
 - `attendees.csv`
 - `attendee-qr.png`
 
-Typical first commit flow:
-
-```bash
-git add .
-git status --short
-git commit -m "Initial event check-in app"
-git branch -M main
-git remote add origin YOUR_REPO_URL
-git push -u origin main
-```
+---
 
 ## Notes
 
-- backend uses raw `pg` queries, no ORM
-- QR payload format is JSON with `attendee_id`, `event_id`, and `hmac`
-- check-in uses `ON CONFLICT DO NOTHING` to detect duplicate scans
-- Expo uses `expo-camera` `CameraView` instead of deprecated `expo-barcode-scanner`
+- The backend uses raw `pg` queries, no ORM.
+- QR payload format: JSON string `{"attendee_id":"...","event_id":"...","hmac":"..."}`, HMAC-signed with `HMAC_SECRET`.
+- Double check-in is prevented by a `UNIQUE` constraint on `checkins.attendee_id` — the insert uses `ON CONFLICT DO NOTHING`.
+- The Expo app uses `expo-camera` `CameraView`. The deprecated `expo-barcode-scanner` is not used.
