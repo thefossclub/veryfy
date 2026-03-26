@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Veryfy",
-    "slug": "Veryfy",
+    "slug": "expo-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/veryfy.png",
