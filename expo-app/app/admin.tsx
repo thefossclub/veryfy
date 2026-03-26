@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 
@@ -112,6 +113,8 @@ export default function AdminScreen({ onBack }: AdminScreenProps) {
   const [selectedCheckpointId, setSelectedCheckpointId] = useState<string | null>(null);
   const [attendees, setAttendees] = useState<AttendeeRecord[]>([]);
   const [filter, setFilter] = useState<Filter>("all");
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
   const [isLoadingAttendees, setIsLoadingAttendees] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -276,14 +279,57 @@ export default function AdminScreen({ onBack }: AdminScreenProps) {
   };
 
   const filteredAttendees = (() => {
-    switch (filter) {
-      case "checked_in":
-        return attendees.filter((attendee) => attendee.checkedIn);
-      case "pending":
-        return attendees.filter((attendee) => !attendee.checkedIn);
-      default:
-        return attendees;
+    const byFilter = (() => {
+      switch (filter) {
+        case "checked_in":
+          return attendees.filter((attendee) => attendee.checkedIn);
+        case "pending":
+          return attendees.filter((attendee) => !attendee.checkedIn);
+        default:
+          return attendees;
+      }
+    })();
+
+    const query = searchQuery.trim().toLowerCase();
+
+    if (!query) {
+      return byFilter;
     }
+
+    return byFilter.filter((attendee) => {
+      const haystack = [
+        attendee.name,
+        attendee.email,
+        attendee.university ?? "",
+        attendee.profileLink ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(query);
+    });
+  })();
+
+  const handleToggleSearch = () => {
+    setIsSearchOpen((current) => {
+      if (current) {
+        setSearchQuery("");
+      }
+
+      return !current;
+    });
+  };
+
+  const handleClearSearch = () => {
+    setSearchQuery("");
+  };
+
+  const filterSummary = (() => {
+    if (!searchQuery.trim()) {
+      return null;
+    }
+
+    return `${filteredAttendees.length} result${filteredAttendees.length === 1 ? "" : "s"} for "${searchQuery.trim()}"`;
   })();
 
   const handleOpenProfile = async (profileLink: string | null) => {
@@ -403,7 +449,17 @@ export default function AdminScreen({ onBack }: AdminScreenProps) {
 
       <View style={styles.section}>
         <View style={styles.filterRow}>
-          <Text style={styles.sectionTitle}>Attendees</Text>
+          <View style={styles.attendeeHeaderRow}>
+            <Text style={styles.sectionTitle}>Attendees</Text>
+            <Pressable
+              style={[styles.searchButton, isSearchOpen ? styles.searchButtonActive : null]}
+              onPress={handleToggleSearch}
+            >
+              <Text style={[styles.searchButtonLabel, isSearchOpen ? styles.searchButtonLabelActive : null]}>
+                Search
+              </Text>
+            </Pressable>
+          </View>
           <View style={styles.filterTabs}>
             <Pressable
               style={[styles.filterTab, filter === "all" ? styles.filterTabActive : null]}
@@ -424,6 +480,25 @@ export default function AdminScreen({ onBack }: AdminScreenProps) {
               <Text style={[styles.filterText, filter === "pending" ? styles.filterTextActive : null]}>Pending</Text>
             </Pressable>
           </View>
+          {isSearchOpen ? (
+            <View style={styles.searchBox}>
+              <TextInput
+                autoCapitalize="none"
+                autoCorrect={false}
+                onChangeText={setSearchQuery}
+                placeholder="Search name, email, university, profile"
+                placeholderTextColor="#8a8073"
+                style={styles.searchInput}
+                value={searchQuery}
+              />
+              {searchQuery ? (
+                <Pressable style={styles.clearSearchButton} onPress={handleClearSearch}>
+                  <Text style={styles.clearSearchButtonLabel}>Clear</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
+          {filterSummary ? <Text style={styles.searchSummary}>{filterSummary}</Text> : null}
         </View>
 
         {errorMessage ? (
@@ -647,10 +722,35 @@ const styles = StyleSheet.create({
   filterRow: {
     gap: 10,
   },
+  attendeeHeaderRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
   filterTabs: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
+  },
+  searchButton: {
+    alignItems: "center",
+    backgroundColor: "#eadfcd",
+    borderRadius: 999,
+    justifyContent: "center",
+    minWidth: 86,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  searchButtonActive: {
+    backgroundColor: "#1b4d3e",
+  },
+  searchButtonLabel: {
+    color: "#5d5146",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  searchButtonLabelActive: {
+    color: "#fff7ed",
   },
   filterTab: {
     backgroundColor: "#eadfcd",
@@ -668,6 +768,39 @@ const styles = StyleSheet.create({
   },
   filterTextActive: {
     color: "#fff7ed",
+  },
+  searchBox: {
+    alignItems: "center",
+    backgroundColor: "#fffaf3",
+    borderColor: "#d8c7aa",
+    borderRadius: 18,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  searchInput: {
+    color: "#102a1f",
+    flex: 1,
+    fontSize: 15,
+    paddingVertical: 4,
+  },
+  clearSearchButton: {
+    backgroundColor: "#eadfcd",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  clearSearchButtonLabel: {
+    color: "#5d5146",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  searchSummary: {
+    color: "#6f665a",
+    fontSize: 13,
+    fontWeight: "600",
   },
   errorBox: {
     backgroundColor: "#fde7e2",

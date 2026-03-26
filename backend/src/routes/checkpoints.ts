@@ -74,7 +74,7 @@ checkpoints.get("/:eventId", async (c) => {
        cp.sort_order,
        cp.created_at,
        COUNT(DISTINCT a.id)::int AS attendee_count,
-       COUNT(c.id)::int AS checked_in_count
+       COUNT(DISTINCT c.id)::int AS checked_in_count
      FROM checkpoints cp
      LEFT JOIN attendees a ON a.event_id = cp.event_id
      LEFT JOIN checkins c ON c.checkpoint_id = cp.id
