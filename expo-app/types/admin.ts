@@ -20,6 +20,7 @@ export interface AttendeeRecord {
   id: string;
   name: string;
   email: string;
+  teamName: string | null;
   university: string | null;
   profileLink: string | null;
   emailSent: boolean;

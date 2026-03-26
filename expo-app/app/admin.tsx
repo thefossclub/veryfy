@@ -57,6 +57,7 @@ function isAttendeeRecordArray(payload: unknown): payload is AttendeeRecord[] {
         typeof item.id === "string" &&
         typeof item.name === "string" &&
         typeof item.email === "string" &&
+        (typeof item.teamName === "string" || item.teamName === null) &&
         (typeof item.university === "string" || item.university === null) &&
         (typeof item.profileLink === "string" || item.profileLink === null) &&
         typeof item.checkedIn === "boolean" &&
@@ -300,6 +301,7 @@ export default function AdminScreen({ onBack }: AdminScreenProps) {
       const haystack = [
         attendee.name,
         attendee.email,
+        attendee.teamName ?? "",
         attendee.university ?? "",
         attendee.profileLink ?? "",
       ]
@@ -360,7 +362,7 @@ export default function AdminScreen({ onBack }: AdminScreenProps) {
       <View style={styles.header}>
         <Text style={styles.title}>Attendee check-in status</Text>
         <Text style={styles.description}>
-          Select an event to see who has checked in, who is pending, and each attendee's university and profile link.
+          Select an event to see who has checked in, who is pending, and each attendee's team, university, and profile details.
         </Text>
         <Pressable
           disabled={!selectedEventId}
@@ -486,7 +488,7 @@ export default function AdminScreen({ onBack }: AdminScreenProps) {
                 autoCapitalize="none"
                 autoCorrect={false}
                 onChangeText={setSearchQuery}
-                placeholder="Search name, email, university, profile"
+                placeholder="Search name, email, team, university, profile"
                 placeholderTextColor="#8a8073"
                 style={styles.searchInput}
                 value={searchQuery}
@@ -532,6 +534,11 @@ export default function AdminScreen({ onBack }: AdminScreenProps) {
                       {attendee.checkedIn ? "Checked in" : "Pending"}
                     </Text>
                   </View>
+                </View>
+
+                <View style={styles.metaBlock}>
+                  <Text style={styles.metaLabel}>Team</Text>
+                  <Text style={styles.metaValue}>{attendee.teamName ?? "Not provided"}</Text>
                 </View>
 
                 <View style={styles.metaBlock}>

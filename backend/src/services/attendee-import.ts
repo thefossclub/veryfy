@@ -55,9 +55,9 @@ export async function importAttendeesForEvent({
     const qrBase64 = sendEmails ? await generateQRImage(payload) : null;
 
     await client.query(
-      `INSERT INTO attendees (id, event_id, name, email, university, profile_link, qr_token, email_sent)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, false)`,
-      [attendeeId, eventId, row.name, row.email, row.university, row.profileLink, payload.hmac],
+      `INSERT INTO attendees (id, event_id, name, email, team_name, university, profile_link, qr_token, email_sent)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false)`,
+      [attendeeId, eventId, row.name, row.email, row.teamName, row.university, row.profileLink, payload.hmac],
     );
 
     if (sendEmails && qrBase64) {

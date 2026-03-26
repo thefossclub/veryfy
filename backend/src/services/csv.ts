@@ -3,6 +3,7 @@ import { parse } from "csv-parse/sync";
 export interface CsvAttendeeRow {
   name: string;
   email: string;
+  teamName: string;
   university: string;
   profileLink: string;
 }
@@ -10,6 +11,7 @@ export interface CsvAttendeeRow {
 interface RawCsvRow {
   name?: string;
   email?: string;
+  team_name?: string;
   university?: string;
   profile_link?: string;
 }
@@ -34,10 +36,11 @@ export function parseCSV(buffer: Buffer): CsvAttendeeRow[] {
   return rows.map((row, index) => {
     const name = row.name?.trim();
     const email = row.email?.trim();
+    const teamName = row.team_name?.trim();
     const university = row.university?.trim();
     const profileLink = row.profile_link?.trim();
 
-    if (!name || !email || !university || !profileLink) {
+    if (!name || !email || !teamName || !university || !profileLink) {
       throw new Error(`Invalid CSV row at line ${index + 2}`);
     }
 
@@ -45,6 +48,6 @@ export function parseCSV(buffer: Buffer): CsvAttendeeRow[] {
       throw new Error(`Invalid profile_link at line ${index + 2}`);
     }
 
-    return { name, email, university, profileLink };
+    return { name, email, teamName, university, profileLink };
   });
 }

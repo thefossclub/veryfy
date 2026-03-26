@@ -18,6 +18,7 @@ interface AttendeeListRow extends QueryResultRow {
   id: string;
   name: string;
   email: string;
+  team_name: string | null;
   university: string | null;
   profile_link: string | null;
   email_sent: boolean;
@@ -44,6 +45,7 @@ interface AttendeeExportRow extends QueryResultRow {
   attendee_id: string;
   name: string;
   email: string;
+  team_name: string | null;
   university: string | null;
   profile_link: string | null;
   email_sent: boolean;
@@ -135,6 +137,7 @@ attendees.get("/:eventId", async (c) => {
          a.id,
          a.name,
          a.email,
+         a.team_name,
          a.university,
          a.profile_link,
          a.email_sent,
@@ -146,7 +149,7 @@ attendees.get("/:eventId", async (c) => {
          ON c.attendee_id = a.id
         AND ($2::uuid IS NULL OR c.checkpoint_id = $2::uuid)
        WHERE a.event_id = $1
-       GROUP BY a.id, a.name, a.email, a.university, a.profile_link, a.email_sent, a.created_at
+       GROUP BY a.id, a.name, a.email, a.team_name, a.university, a.profile_link, a.email_sent, a.created_at
        ORDER BY a.created_at ASC`,
       [eventId, checkpointId ?? null],
     );
@@ -160,6 +163,7 @@ attendees.get("/:eventId", async (c) => {
       id: row.id,
       name: row.name,
       email: row.email,
+      teamName: row.team_name,
       university: row.university,
       profileLink: row.profile_link,
       emailSent: row.email_sent,
@@ -237,6 +241,7 @@ attendees.get("/:eventId/export.csv", async (c) => {
          a.id AS attendee_id,
          a.name,
          a.email,
+         a.team_name,
          a.university,
          a.profile_link,
          a.email_sent,
@@ -266,6 +271,7 @@ attendees.get("/:eventId/export.csv", async (c) => {
     "attendee_id",
     "name",
     "email",
+    "team_name",
     "university",
     "profile_link",
     "email_sent",
@@ -280,6 +286,7 @@ attendees.get("/:eventId/export.csv", async (c) => {
       attendeeId: string;
       name: string;
       email: string;
+      teamName: string | null;
       university: string | null;
       profileLink: string | null;
       emailSent: boolean;
@@ -295,6 +302,7 @@ attendees.get("/:eventId/export.csv", async (c) => {
         attendeeId: row.attendee_id,
         name: row.name,
         email: row.email,
+        teamName: row.team_name,
         university: row.university,
         profileLink: row.profile_link,
         emailSent: row.email_sent,
@@ -319,6 +327,7 @@ attendees.get("/:eventId/export.csv", async (c) => {
     attendee.attendeeId,
     attendee.name,
     attendee.email,
+    attendee.teamName,
     attendee.university,
     attendee.profileLink,
     attendee.emailSent,
