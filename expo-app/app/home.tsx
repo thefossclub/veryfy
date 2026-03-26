@@ -10,6 +10,7 @@ import {
 
 import { BASE_URL } from "../constants/config";
 import type { CheckpointRecord, EventSummary } from "../types/admin";
+import { getLatestCreatedEvent } from "../utils/events";
 
 interface HomeScreenProps {
   onOpenAdmin: () => void;
@@ -108,7 +109,7 @@ export default function HomeScreen({ onOpenAdmin, onOpenScanner }: HomeScreenPro
           throw new Error("Invalid events response.");
         }
 
-        const latestEvent = eventsPayload[0] ?? null;
+        const latestEvent = getLatestCreatedEvent(eventsPayload);
 
         if (!latestEvent) {
           if (!isActive) {
@@ -186,7 +187,7 @@ export default function HomeScreen({ onOpenAdmin, onOpenScanner }: HomeScreenPro
               <Text style={styles.eventDate}>{formatEventDate(selectedEvent.date)}</Text>
             </View>
 
-            <View style={styles.tileGrid}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tileRow}>
               {checkpoints.map((checkpoint) => {
                 const state = getCheckpointState(checkpoint);
 
@@ -217,7 +218,7 @@ export default function HomeScreen({ onOpenAdmin, onOpenScanner }: HomeScreenPro
                   </View>
                 );
               })}
-            </View>
+            </ScrollView>
           </>
         ) : (
           <View style={styles.emptyBox}>
@@ -305,17 +306,16 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
   },
-  tileGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+  tileRow: {
     gap: 12,
+    paddingRight: 8,
   },
   tile: {
     borderRadius: 24,
     gap: 10,
     minHeight: 132,
     padding: 16,
-    width: "48%",
+    width: 212,
   },
   tileDone: {
     backgroundColor: "#dcefe2",

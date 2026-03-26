@@ -12,6 +12,7 @@ import {
 
 import { BASE_URL } from "../constants/config";
 import type { AttendeeRecord, CheckpointRecord, EventSummary } from "../types/admin";
+import { getLatestCreatedEvent } from "../utils/events";
 
 type Filter = "all" | "checked_in" | "pending";
 
@@ -143,8 +144,10 @@ export default function AdminScreen({ onBack }: AdminScreenProps) {
           return;
         }
 
+        const latestEvent = getLatestCreatedEvent(payload);
+
         setEvents(payload);
-        setSelectedEventId((current) => current ?? payload[0]?.id ?? null);
+        setSelectedEventId((current) => current ?? latestEvent?.id ?? null);
       } catch (error) {
         if (!isActive) {
           return;

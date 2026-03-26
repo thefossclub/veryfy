@@ -12,6 +12,7 @@ import {
 import { BASE_URL } from "../constants/config";
 import type { CheckpointRecord, EventSummary } from "../types/admin";
 import type { CheckinResponse } from "../types/checkin";
+import { getLatestCreatedEvent } from "../utils/events";
 
 interface ScanScreenProps {
   onBack: () => void;
@@ -124,8 +125,10 @@ export default function ScanScreen({ onBack, onResult }: ScanScreenProps) {
           return;
         }
 
+        const latestEvent = getLatestCreatedEvent(payload);
+
         setEvents(payload);
-        setSelectedEventId((current) => current ?? payload[0]?.id ?? null);
+        setSelectedEventId((current) => current ?? latestEvent?.id ?? null);
       } catch (error) {
         if (!isActive) {
           return;
