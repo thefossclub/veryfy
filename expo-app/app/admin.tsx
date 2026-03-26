@@ -10,7 +10,7 @@ import {
 } from "react-native";
 
 import { BASE_URL } from "../constants/config";
-import type { AttendeeRecord, EventSummary } from "../types/admin";
+import type { AttendeeRecord, CheckpointRecord, EventSummary } from "../types/admin";
 
 type Filter = "all" | "checked_in" | "pending";
 
@@ -59,7 +59,27 @@ function isAttendeeRecordArray(payload: unknown): payload is AttendeeRecord[] {
         (typeof item.university === "string" || item.university === null) &&
         (typeof item.profileLink === "string" || item.profileLink === null) &&
         typeof item.checkedIn === "boolean" &&
+        typeof item.checkedInCheckpointCount === "number" &&
         (typeof item.checkedInAt === "string" || item.checkedInAt === null),
+    )
+  );
+}
+
+function isCheckpointRecordArray(payload: unknown): payload is CheckpointRecord[] {
+  return (
+    Array.isArray(payload) &&
+    payload.every(
+      (item) =>
+        typeof item === "object" &&
+        item !== null &&
+        typeof item.id === "string" &&
+        typeof item.eventId === "string" &&
+        typeof item.code === "string" &&
+        typeof item.name === "string" &&
+        typeof item.sortOrder === "number" &&
+        typeof item.createdAt === "string" &&
+        typeof item.attendeeCount === "number" &&
+        typeof item.checkedInCount === "number",
     )
   );
 }
@@ -88,6 +108,8 @@ function formatDateTime(value: string | null): string {
 export default function AdminScreen({ onBack }: AdminScreenProps) {
   const [events, setEvents] = useState<EventSummary[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [checkpoints, setCheckpoints] = useState<CheckpointRecord[]>([]);
+  const [selectedCheckpointId, setSelectedCheckpointId] = useState<string | null>(null);
   const [attendees, setAttendees] = useState<AttendeeRecord[]>([]);
   const [filter, setFilter] = useState<Filter>("all");
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
@@ -142,6 +164,60 @@ export default function AdminScreen({ onBack }: AdminScreenProps) {
 
   useEffect(() => {
     if (!selectedEventId) {
+      setCheckpoints([]);
+      setSelectedCheckpointId(null);
+      setAttendees([]);
+      return;
+    }
+
+    let isActive = true;
+
+    async function loadCheckpoints() {
+      setErrorMessage(null);
+
+      try {
+        const response = await fetch(`${BASE_URL}/checkpoints/${selectedEventId}`);
+        const payload = (await response.json()) as unknown;
+
+        if (!response.ok) {
+          throw new Error(normalizeError(payload));
+        }
+
+        if (!isCheckpointRecordArray(payload)) {
+          throw new Error("Invalid checkpoints response.");
+        }
+
+        if (!isActive) {
+          return;
+        }
+
+        setCheckpoints(payload);
+        setSelectedCheckpointId((current) => {
+          if (current && payload.some((checkpoint) => checkpoint.id === current)) {
+            return current;
+          }
+
+          return payload[0]?.id ?? null;
+        });
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        const message = error instanceof Error ? error.message : "Could not load checkpoints.";
+        setErrorMessage(message);
+      }
+    }
+
+    loadCheckpoints();
+
+    return () => {
+      isActive = false;
+    };
+  }, [selectedEventId]);
+
+  useEffect(() => {
+    if (!selectedEventId || !selectedCheckpointId) {
       setAttendees([]);
       return;
     }
@@ -154,7 +230,7 @@ export default function AdminScreen({ onBack }: AdminScreenProps) {
       setAttendees([]);
 
       try {
-        const response = await fetch(`${BASE_URL}/attendees/${selectedEventId}`);
+        const response = await fetch(`${BASE_URL}/attendees/${selectedEventId}?checkpointId=${selectedCheckpointId}`);
         const payload = (await response.json()) as unknown;
 
         if (!response.ok) {
@@ -189,13 +265,14 @@ export default function AdminScreen({ onBack }: AdminScreenProps) {
     return () => {
       isActive = false;
     };
-  }, [selectedEventId]);
+  }, [selectedCheckpointId, selectedEventId]);
 
-  const checkedInCount = attendees.filter((attendee) => attendee.checkedIn).length;
+  const selectedCheckpoint = checkpoints.find((checkpoint) => checkpoint.id === selectedCheckpointId) ?? null;
+  const checkedInCount = selectedCheckpoint?.checkedInCount ?? attendees.filter((attendee) => attendee.checkedIn).length;
   const counts = {
-    total: attendees.length,
+    total: selectedCheckpoint?.attendeeCount ?? attendees.length,
     checkedIn: checkedInCount,
-    pending: attendees.length - checkedInCount,
+    pending: (selectedCheckpoint?.attendeeCount ?? attendees.length) - checkedInCount,
   };
 
   const filteredAttendees = (() => {
@@ -283,6 +360,32 @@ export default function AdminScreen({ onBack }: AdminScreenProps) {
         )}
       </View>
 
+      {checkpoints.length > 0 ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Checkpoints</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.eventScroller}>
+            <View style={styles.eventRow}>
+              {checkpoints.map((checkpoint) => {
+                const isSelected = checkpoint.id === selectedCheckpointId;
+
+                return (
+                  <Pressable
+                    key={checkpoint.id}
+                    style={[styles.eventCard, isSelected ? styles.eventCardSelected : null]}
+                    onPress={() => setSelectedCheckpointId(checkpoint.id)}
+                  >
+                    <Text style={[styles.eventName, isSelected ? styles.eventNameSelected : null]}>{checkpoint.name}</Text>
+                    <Text style={[styles.eventDate, isSelected ? styles.eventDateSelected : null]}>
+                      {checkpoint.checkedInCount}/{checkpoint.attendeeCount} checked in
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </ScrollView>
+        </View>
+      ) : null}
+
       <View style={styles.section}>
         <View style={styles.filterRow}>
           <Text style={styles.sectionTitle}>Attendees</Text>
@@ -321,7 +424,9 @@ export default function AdminScreen({ onBack }: AdminScreenProps) {
           </View>
         ) : filteredAttendees.length === 0 ? (
           <View style={styles.emptyBox}>
-            <Text style={styles.emptyText}>No attendees match this filter.</Text>
+            <Text style={styles.emptyText}>
+              {selectedCheckpointId ? "No attendees match this filter." : "Select a checkpoint to view attendance."}
+            </Text>
           </View>
         ) : (
           <View style={styles.list}>
@@ -345,7 +450,12 @@ export default function AdminScreen({ onBack }: AdminScreenProps) {
                 </View>
 
                 <View style={styles.metaBlock}>
-                  <Text style={styles.metaLabel}>Checked in at</Text>
+                  <Text style={styles.metaLabel}>Checkpoint scans</Text>
+                  <Text style={styles.metaValue}>{attendee.checkedInCheckpointCount}</Text>
+                </View>
+
+                <View style={styles.metaBlock}>
+                  <Text style={styles.metaLabel}>Last scan at</Text>
                   <Text style={styles.metaValue}>{formatDateTime(attendee.checkedInAt)}</Text>
                 </View>
 

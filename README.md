@@ -198,6 +198,9 @@ Response:
 
 Copy the `id`. It is required for the import step.
 
+Each event gets a default checkpoint named `Main Entry`. You can add more
+checkpoints like `Lunch`, `Auditorium Entry`, or `Energy Zone` later.
+
 #### 7. Prepare the attendee CSV
 
 Place a file named `attendees.csv` in the repo root. The expected columns are:
@@ -225,6 +228,24 @@ Expected response:
 This inserts each attendee, generates a signed QR payload, and sends an email.
 Rows with a duplicate email for the same event are skipped. The entire insert
 batch is transactional — if any row fails validation, nothing is written.
+
+#### 8a. Add more checkpoints for the same event
+
+Use the event id from step 6:
+
+```bash
+curl -X POST http://localhost:3000/checkpoints/EVENT_ID \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Lunch","code":"lunch","sortOrder":10}'
+```
+
+Example for an auditorium checkpoint:
+
+```bash
+curl -X POST http://localhost:3000/checkpoints/EVENT_ID \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Auditorium Entry","code":"auditorium_entry","sortOrder":20}'
+```
 
 #### 9. Start the Expo app
 
@@ -309,17 +330,31 @@ One row per registered attendee per event.
 
 ### checkins
 
-One row per completed check-in. The `UNIQUE` constraint on `attendee_id`
-prevents double check-ins at the database level.
+One row per completed attendee check-in per checkpoint.
 
 | Column          | Type        | Description                                             |
 | --------------- | ----------- | ------------------------------------------------------- |
 | `id`            | UUID        | Primary key, auto-generated.                            |
-| `attendee_id`   | UUID        | Foreign key to `attendees`. Unique. Cascades on delete. |
-| `checked_in_at` | TIMESTAMPTZ | Timestamp of the check-in.                              |
+| `attendee_id`   | UUID        | Foreign key to `attendees`. Cascades on delete.         |
+| `checkpoint_id` | UUID        | Foreign key to `checkpoints`. Cascades on delete.       |
+| `checked_in_at` | TIMESTAMPTZ | Timestamp of the checkpoint check-in.                   |
+
+### checkpoints
+
+One row per reusable scan location inside an event.
+
+| Column       | Type        | Description                                        |
+| ------------ | ----------- | -------------------------------------------------- |
+| `id`         | UUID        | Primary key, auto-generated.                       |
+| `event_id`   | UUID        | Foreign key to `events`. Cascades on delete.       |
+| `code`       | TEXT        | Stable checkpoint id, unique within an event.      |
+| `name`       | TEXT        | Human-readable checkpoint name.                    |
+| `sort_order` | INTEGER     | Controls checkpoint ordering in scanner/admin UI.  |
+| `created_at` | TIMESTAMPTZ | Row creation timestamp.                            |
 
 Two indexes are defined: `attendees_event_id_idx` for fast attendee lookups by
-event, and `checkins_attendee_id_idx` for fast check-in lookups by attendee.
+event, `checkpoints_event_id_idx` for fast checkpoint lookups by event, and
+`checkins_attendee_id_idx` for fast check-in lookups by attendee.
 
 ---
 
@@ -332,19 +367,26 @@ event, and `checkins_attendee_id_idx` for fast check-in lookups by attendee.
 | `GET`  | `/events` | List all events.                                            |
 | `POST` | `/events` | Create an event. Body: `{"name":"...","date":"YYYY-MM-DD"}` |
 
+### Checkpoints
+
+| Method | Path                    | Description                                                                    |
+| ------ | ----------------------- | ------------------------------------------------------------------------------ |
+| `GET`  | `/checkpoints/:eventId` | List checkpoints for an event, including checkpoint-level counts.              |
+| `POST` | `/checkpoints/:eventId` | Create a checkpoint. Body: `{"name":"Lunch","code":"lunch","sortOrder":10}` |
+
 ### Attendees
 
 | Method | Path                         | Description                                                        |
 | ------ | ---------------------------- | ------------------------------------------------------------------ |
-| `GET`  | `/attendees/:eventId`        | List all attendees for an event, including check-in status.        |
+| `GET`  | `/attendees/:eventId`        | List attendees for an event. Optional query: `checkpointId=...`    |
 | `POST` | `/attendees/import`          | Import attendees from a CSV. Form fields: `eventId`, `csv` (file). |
 | `POST` | `/attendees/:eventId/resend` | Resend QR emails for all attendees of an event.                    |
 
 ### Check-in
 
-| Method | Path       | Description                                                      |
-| ------ | ---------- | ---------------------------------------------------------------- |
-| `POST` | `/checkin` | Verify a QR token and record a check-in. Body: `{"token":"..."}` |
+| Method | Path       | Description                                                                                     |
+| ------ | ---------- | ----------------------------------------------------------------------------------------------- |
+| `POST` | `/checkin` | Verify a QR token and record a checkpoint check-in. Body: `{"token":"...","checkpointId":"..."}` |
 
 ### Utilities
 
@@ -437,5 +479,6 @@ The following should not appear in the output:
 
 - The backend uses raw `pg` queries, no ORM.
 - QR payload format: JSON string `{"attendee_id":"...","event_id":"...","hmac":"..."}`, HMAC-signed with `HMAC_SECRET`.
-- Double check-in is prevented by a `UNIQUE` constraint on `checkins.attendee_id` — the insert uses `ON CONFLICT DO NOTHING`.
+- The same attendee QR can now be used across multiple checkpoints within the same event.
+- Duplicate scans are prevented by a `UNIQUE(attendee_id, checkpoint_id)` index on `checkins`.
 - The Expo app uses `expo-camera` `CameraView`. The deprecated `expo-barcode-scanner` is not used.

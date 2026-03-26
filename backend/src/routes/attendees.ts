@@ -20,6 +20,7 @@ interface AttendeeListRow extends QueryResultRow {
   profile_link: string | null;
   email_sent: boolean;
   created_at: string | Date;
+  checkin_count: number;
   checked_in_at: string | Date | null;
 }
 
@@ -80,9 +81,14 @@ attendees.post("/import", async (c) => {
 
 attendees.get("/:eventId", async (c) => {
   const eventId = c.req.param("eventId");
+  const checkpointId = c.req.query("checkpointId");
 
   if (!isUuid(eventId)) {
     return c.json({ error: "eventId must be a valid UUID" }, 400);
+  }
+
+  if (checkpointId && !isUuid(checkpointId)) {
+    return c.json({ error: "checkpointId must be a valid UUID" }, 400);
   }
 
   const result = await withTransaction(async (client: PoolClient) => {
@@ -90,6 +96,17 @@ attendees.get("/:eventId", async (c) => {
 
     if (event.rowCount === 0) {
       throw new Error("Event not found");
+    }
+
+    if (checkpointId) {
+      const checkpoint = await client.query<EventRow>(
+        "SELECT id FROM checkpoints WHERE id = $1 AND event_id = $2",
+        [checkpointId, eventId],
+      );
+
+      if ((checkpoint.rowCount ?? 0) === 0) {
+        throw new Error("Checkpoint not found");
+      }
     }
 
     return client.query<AttendeeListRow>(
@@ -101,12 +118,16 @@ attendees.get("/:eventId", async (c) => {
          a.profile_link,
          a.email_sent,
          a.created_at,
-         c.checked_in_at
+         COUNT(c.id)::int AS checkin_count,
+         MAX(c.checked_in_at) AS checked_in_at
        FROM attendees a
-       LEFT JOIN checkins c ON c.attendee_id = a.id
+       LEFT JOIN checkins c
+         ON c.attendee_id = a.id
+        AND ($2::uuid IS NULL OR c.checkpoint_id = $2::uuid)
        WHERE a.event_id = $1
+       GROUP BY a.id, a.name, a.email, a.university, a.profile_link, a.email_sent, a.created_at
        ORDER BY a.created_at ASC`,
-      [eventId],
+      [eventId, checkpointId ?? null],
     );
   }).catch((error: unknown) => {
     const message = error instanceof Error ? error.message : "Failed to fetch attendees";
@@ -122,7 +143,8 @@ attendees.get("/:eventId", async (c) => {
       profileLink: row.profile_link,
       emailSent: row.email_sent,
       createdAt: toIsoString(row.created_at),
-      checkedIn: row.checked_in_at !== null,
+      checkedIn: row.checkin_count > 0,
+      checkedInCheckpointCount: row.checkin_count,
       checkedInAt: toIsoString(row.checked_in_at),
     })),
   );

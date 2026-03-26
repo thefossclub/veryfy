@@ -30,6 +30,7 @@ export default function ResultScreen({ onDone, result, onScanAgain }: ResultScre
 
       <StatusCard
         checkedInAt={result.checkedInAt}
+        checkpoint={result.checkpoint}
         event={result.event}
         message={result.message}
         name={result.name}

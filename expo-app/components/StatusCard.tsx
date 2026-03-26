@@ -7,6 +7,7 @@ interface StatusCardProps {
   name?: string;
   checkedInAt?: string;
   event?: string;
+  checkpoint?: string;
   message?: string;
 }
 
@@ -59,6 +60,7 @@ function formatTimestamp(value?: string): string | null {
 
 export default function StatusCard({
   checkedInAt,
+  checkpoint,
   event,
   message,
   name,
@@ -75,6 +77,7 @@ export default function StatusCard({
       <Text style={[styles.title, { color: tone.accent }]}>{tone.title}</Text>
       {name ? <Text style={styles.name}>{name}</Text> : null}
       {event ? <Text style={styles.meta}>Event: {event}</Text> : null}
+      {checkpoint ? <Text style={styles.meta}>Checkpoint: {checkpoint}</Text> : null}
       {formattedTimestamp ? <Text style={styles.meta}>Timestamp: {formattedTimestamp}</Text> : null}
       {message ? <Text style={styles.message}>{message}</Text> : null}
     </View>

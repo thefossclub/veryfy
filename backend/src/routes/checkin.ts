@@ -6,6 +6,7 @@ import type { QrPayload } from "../services/qr";
 import { verifyToken } from "../services/qr";
 
 interface CheckinBody {
+  checkpointId: string;
   token: string;
 }
 
@@ -14,6 +15,7 @@ interface AttendeeLookupRow extends QueryResultRow {
   name: string;
   qr_token: string;
   event_name: string;
+  checkpoint_name: string;
 }
 
 interface CheckinInsertRow extends QueryResultRow {
@@ -30,7 +32,7 @@ function isCheckinBody(value: unknown): value is CheckinBody {
   }
 
   const maybeBody = value as Record<string, unknown>;
-  return typeof maybeBody.token === "string";
+  return typeof maybeBody.token === "string" && typeof maybeBody.checkpointId === "string";
 }
 
 function isQrPayload(value: unknown): value is QrPayload {
@@ -56,7 +58,11 @@ checkin.post("/", async (c) => {
   const body = await c.req.json<unknown>().catch(() => null);
 
   if (!isCheckinBody(body)) {
-    return c.json({ error: "Body must include token" }, 400);
+    return c.json({ error: "Body must include token and checkpointId" }, 400);
+  }
+
+  if (!body.checkpointId.trim()) {
+    return c.json({ error: "checkpointId is required" }, 400);
   }
 
   const parsed = (() => {
@@ -80,11 +86,13 @@ checkin.post("/", async (c) => {
        a.id,
        a.name,
        a.qr_token,
-       e.name AS event_name
+       e.name AS event_name,
+       cp.name AS checkpoint_name
      FROM attendees a
      INNER JOIN events e ON e.id = a.event_id
+     INNER JOIN checkpoints cp ON cp.id = $3 AND cp.event_id = e.id
      WHERE a.id = $1 AND a.event_id = $2`,
-    [parsed.attendee_id, parsed.event_id],
+    [parsed.attendee_id, parsed.event_id, body.checkpointId.trim()],
   );
 
   const attendeeRow = attendee.rows[0];
@@ -94,17 +102,17 @@ checkin.post("/", async (c) => {
   }
 
   const inserted = await query<CheckinInsertRow>(
-    `INSERT INTO checkins (attendee_id)
-     VALUES ($1)
-     ON CONFLICT (attendee_id) DO NOTHING
+    `INSERT INTO checkins (attendee_id, checkpoint_id)
+     VALUES ($1, $2)
+     ON CONFLICT (attendee_id, checkpoint_id) DO NOTHING
      RETURNING checked_in_at`,
-    [attendeeRow.id],
+    [attendeeRow.id, body.checkpointId.trim()],
   );
 
   if (inserted.rowCount === 0) {
     const existing = await query<ExistingCheckinRow>(
-      "SELECT checked_in_at FROM checkins WHERE attendee_id = $1",
-      [attendeeRow.id],
+      "SELECT checked_in_at FROM checkins WHERE attendee_id = $1 AND checkpoint_id = $2",
+      [attendeeRow.id, body.checkpointId.trim()],
     );
 
     const checkedInAt = existing.rows[0]?.checked_in_at;
@@ -112,6 +120,7 @@ checkin.post("/", async (c) => {
     return c.json({
       status: "already_checked_in",
       name: attendeeRow.name,
+      checkpoint: attendeeRow.checkpoint_name,
       checkedInAt: checkedInAt ? toIsoString(checkedInAt) : undefined,
     });
   }
@@ -126,6 +135,7 @@ checkin.post("/", async (c) => {
     status: "ok",
     name: attendeeRow.name,
     event: attendeeRow.event_name,
+    checkpoint: attendeeRow.checkpoint_name,
     checkedInAt: toIsoString(insertedRow.checked_in_at),
   });
 });

@@ -82,6 +82,13 @@ events.post("/", async (c) => {
     return c.json({ error: "Failed to create event" }, 500);
   }
 
+  await query(
+    `INSERT INTO checkpoints (event_id, code, name, sort_order)
+     VALUES ($1, 'main_entry', 'Main Entry', 0)
+     ON CONFLICT (event_id, code) DO NOTHING`,
+    [event.id],
+  );
+
   return c.json(
     {
       id: event.id,

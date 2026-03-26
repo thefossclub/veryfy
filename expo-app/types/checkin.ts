@@ -4,6 +4,7 @@ export interface CheckinResponse {
   status: CheckinStatus;
   name?: string;
   event?: string;
+  checkpoint?: string;
   checkedInAt?: string;
   message?: string;
 }

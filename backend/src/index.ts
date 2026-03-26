@@ -3,6 +3,7 @@ import { HTTPException } from "hono/http-exception";
 
 import attendees from "./routes/attendees";
 import checkin from "./routes/checkin";
+import checkpoints from "./routes/checkpoints";
 import events from "./routes/events";
 import qr from "./routes/qr";
 import { bootstrapAttendeesFromCsv } from "./services/bootstrap";
@@ -14,6 +15,7 @@ app.get("/", (c) => c.json({ status: "ok", service: "event-checkin" }));
 app.route("/events", events);
 app.route("/attendees", attendees);
 app.route("/checkin", checkin);
+app.route("/checkpoints", checkpoints);
 app.route("/qr", qr);
 
 app.notFound((c) => c.json({ error: "Not found" }, 404));
@@ -28,7 +30,7 @@ app.onError((error, c) => {
   }
 
   const message = error instanceof Error ? error.message : "Internal server error";
-  const status = message === "Event not found" ? 404 : 500;
+  const status = message === "Event not found" || message === "Checkpoint not found" ? 404 : 500;
 
   if (status === 500) {
     console.error(error);
