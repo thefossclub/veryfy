@@ -294,6 +294,14 @@ export default function AdminScreen({ onBack }: AdminScreenProps) {
     await Linking.openURL(profileLink);
   };
 
+  const handleExportCsv = async () => {
+    if (!selectedEventId) {
+      return;
+    }
+
+    await Linking.openURL(`${BASE_URL}/attendees/${selectedEventId}/export.csv`);
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.content} style={styles.screen}>
       <View style={styles.headerRow}>
@@ -308,6 +316,13 @@ export default function AdminScreen({ onBack }: AdminScreenProps) {
         <Text style={styles.description}>
           Select an event to see who has checked in, who is pending, and each attendee's university and profile link.
         </Text>
+        <Pressable
+          disabled={!selectedEventId}
+          style={[styles.exportButton, !selectedEventId ? styles.exportButtonDisabled : null]}
+          onPress={handleExportCsv}
+        >
+          <Text style={styles.exportButtonLabel}>Export CSV</Text>
+        </Pressable>
       </View>
 
       <View style={styles.summaryRow}>
@@ -525,6 +540,22 @@ const styles = StyleSheet.create({
     color: "#4f5d50",
     fontSize: 15,
     lineHeight: 22,
+  },
+  exportButton: {
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: "#102a1f",
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  exportButtonDisabled: {
+    backgroundColor: "#8b8b84",
+  },
+  exportButtonLabel: {
+    color: "#fff7ed",
+    fontSize: 14,
+    fontWeight: "700",
   },
   summaryRow: {
     flexDirection: "row",

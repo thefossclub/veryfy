@@ -380,6 +380,7 @@ event, `checkpoints_event_id_idx` for fast checkpoint lookups by event, and
 | Method | Path                         | Description                                                        |
 | ------ | ---------------------------- | ------------------------------------------------------------------ |
 | `GET`  | `/attendees/:eventId`        | List attendees for an event. Optional query: `checkpointId=...`    |
+| `GET`  | `/attendees/:eventId/export.csv` | Export event attendance as CSV, including checkpoint timestamps. |
 | `POST` | `/attendees/import`          | Import attendees from a CSV. Form fields: `eventId`, `csv` (file). |
 | `POST` | `/attendees/:eventId/resend` | Resend QR emails for all attendees of an event.                    |
 

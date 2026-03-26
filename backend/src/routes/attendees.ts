@@ -4,12 +4,14 @@ import type { PoolClient, QueryResultRow } from "pg";
 import { withTransaction } from "../db";
 import { importAttendeesForEvent } from "../services/attendee-import";
 import { parseCSV } from "../services/csv";
+import { buildCsv } from "../services/export";
 import { sendQREmail } from "../services/mailer";
 import { generateQRImage } from "../services/qr";
 import { isUuid } from "../utils/uuid";
 
 interface EventRow extends QueryResultRow {
   id: string;
+  name?: string;
 }
 
 interface AttendeeListRow extends QueryResultRow {
@@ -29,6 +31,25 @@ interface AttendeeEmailRow extends QueryResultRow {
   name: string;
   email: string;
   qr_token: string;
+}
+
+interface CheckpointExportRow extends QueryResultRow {
+  id: string;
+  code: string;
+  name: string;
+  sort_order: number;
+}
+
+interface AttendeeExportRow extends QueryResultRow {
+  attendee_id: string;
+  name: string;
+  email: string;
+  university: string | null;
+  profile_link: string | null;
+  email_sent: boolean;
+  checkpoint_id: string | null;
+  checkpoint_code: string | null;
+  checked_in_at: string | Date | null;
 }
 
 function toIsoString(value: string | Date | null): string | null {
@@ -187,6 +208,132 @@ attendees.post("/:eventId/resend", async (c) => {
   }
 
   return c.json({ resent: attendeesForEmail.rows.length });
+});
+
+attendees.get("/:eventId/export.csv", async (c) => {
+  const eventId = c.req.param("eventId");
+
+  if (!isUuid(eventId)) {
+    return c.json({ error: "eventId must be a valid UUID" }, 400);
+  }
+
+  const exportData = await withTransaction(async (client: PoolClient) => {
+    const event = await client.query<EventRow>("SELECT id, name FROM events WHERE id = $1", [eventId]);
+
+    if ((event.rowCount ?? 0) === 0) {
+      throw new Error("Event not found");
+    }
+
+    const checkpoints = await client.query<CheckpointExportRow>(
+      `SELECT id, code, name, sort_order
+       FROM checkpoints
+       WHERE event_id = $1
+       ORDER BY sort_order ASC, created_at ASC`,
+      [eventId],
+    );
+
+    const attendeesForExport = await client.query<AttendeeExportRow>(
+      `SELECT
+         a.id AS attendee_id,
+         a.name,
+         a.email,
+         a.university,
+         a.profile_link,
+         a.email_sent,
+         cp.id AS checkpoint_id,
+         cp.code AS checkpoint_code,
+         c.checked_in_at
+       FROM attendees a
+       LEFT JOIN checkins c ON c.attendee_id = a.id
+       LEFT JOIN checkpoints cp ON cp.id = c.checkpoint_id
+       WHERE a.event_id = $1
+       ORDER BY a.created_at ASC, cp.sort_order ASC NULLS LAST`,
+      [eventId],
+    );
+
+    return {
+      attendees: attendeesForExport.rows,
+      checkpoints: checkpoints.rows,
+      eventName: event.rows[0]?.name ?? "event",
+    };
+  }).catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : "Failed to export attendees";
+    throw new Error(message);
+  });
+
+  const checkpointHeaders = exportData.checkpoints.map((checkpoint) => `${checkpoint.code}_checked_in_at`);
+  const headers = [
+    "attendee_id",
+    "name",
+    "email",
+    "university",
+    "profile_link",
+    "email_sent",
+    "total_checkpoints_checked_in",
+    "last_checked_in_at",
+    ...checkpointHeaders,
+  ];
+
+  const attendeeMap = new Map<
+    string,
+    {
+      attendeeId: string;
+      name: string;
+      email: string;
+      university: string | null;
+      profileLink: string | null;
+      emailSent: boolean;
+      lastCheckedInAt: string | null;
+      scans: Map<string, string | null>;
+    }
+  >();
+
+  for (const row of exportData.attendees) {
+    const existing =
+      attendeeMap.get(row.attendee_id) ??
+      {
+        attendeeId: row.attendee_id,
+        name: row.name,
+        email: row.email,
+        university: row.university,
+        profileLink: row.profile_link,
+        emailSent: row.email_sent,
+        lastCheckedInAt: null,
+        scans: new Map<string, string | null>(),
+      };
+
+    if (row.checkpoint_code) {
+      existing.scans.set(row.checkpoint_code, toIsoString(row.checked_in_at));
+    }
+
+    const checkedInAt = toIsoString(row.checked_in_at);
+
+    if (checkedInAt && (!existing.lastCheckedInAt || checkedInAt > existing.lastCheckedInAt)) {
+      existing.lastCheckedInAt = checkedInAt;
+    }
+
+    attendeeMap.set(row.attendee_id, existing);
+  }
+
+  const rows = Array.from(attendeeMap.values()).map((attendee) => [
+    attendee.attendeeId,
+    attendee.name,
+    attendee.email,
+    attendee.university,
+    attendee.profileLink,
+    attendee.emailSent,
+    attendee.scans.size,
+    attendee.lastCheckedInAt,
+    ...exportData.checkpoints.map((checkpoint) => attendee.scans.get(checkpoint.code) ?? null),
+  ]);
+
+  const csv = buildCsv(headers, rows);
+  const filename = `${exportData.eventName.toLowerCase().replace(/[^a-z0-9]+/g, "_") || "event"}_attendance.csv`;
+
+  c.header("Content-Type", "text/csv; charset=utf-8");
+  c.header("Content-Disposition", `attachment; filename="${filename}"`);
+
+  return c.body(csv);
 });
 
 export default attendees;
