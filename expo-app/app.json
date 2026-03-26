@@ -1,13 +1,13 @@
 {
   "expo": {
-    "name": "expo-app",
-    "slug": "expo-app",
+    "name": "Veryfy",
+    "slug": "Veryfy",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/veryfy.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/veryfy.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -20,20 +20,28 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
+        "foregroundImage": "./assets/veryfy.png",
+        "backgroundImage": "./assets/veryfy.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "permissions": [
-        "CAMERA"
+        "CAMERA",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ],
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "org.thefossclub.veryfy"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-camera"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "7a309525-8a1c-4dbf-a312-fb892d10e351"
+      }
+    }
   }
 }
