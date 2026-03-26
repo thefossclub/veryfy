@@ -291,6 +291,7 @@ All variables are read from `backend/.env` via `Bun.env`.
 | `AUTO_IMPORT_ATTENDEES_CSV` | no              | If `true`, the backend imports `attendees.csv` from the repo root on startup. Existing rows are skipped. Set to `false` to disable. Default: `false`. |
 | `AUTO_IMPORT_EVENT_NAME`    | no              | Name of the event created during auto-import. Default: `CSV Imported Event`.                                                                          |
 | `AUTO_IMPORT_EVENT_DATE`    | no              | Date of the event created during auto-import. Format: `YYYY-MM-DD`. Default: today.                                                                   |
+| `PGSSLMODE`                 | no              | Set to `require` when connecting the backend to hosted PostgreSQL instances that require SSL, such as Render Postgres.                              |
 | `PORT`                      | no              | Port the backend listens on. Default: `3000`.                                                                                                         |
 
 ---
@@ -447,6 +448,11 @@ that are being misread. Wrap the value in single quotes in `.env`:
 ```env
 SMTP_PASS='your"password'
 ```
+
+### `SSL/TLS required` from PostgreSQL
+
+Your hosted PostgreSQL server requires SSL. Use either `PGSSLMODE=require` in
+`backend/.env` or append `?sslmode=require` to `DATABASE_URL`.
 
 ### Expo app cannot reach backend
 

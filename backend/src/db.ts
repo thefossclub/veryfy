@@ -8,8 +8,24 @@ if (!connectionString) {
   throw new Error("DATABASE_URL is not set");
 }
 
+function shouldUseSsl(url: string): boolean {
+  const sslMode = Bun.env.PGSSLMODE?.trim().toLowerCase();
+
+  if (sslMode === "require") {
+    return true;
+  }
+
+  try {
+    const parsed = new URL(url);
+    return parsed.searchParams.get("sslmode")?.toLowerCase() === "require";
+  } catch {
+    return false;
+  }
+}
+
 export const pool = new Pool({
   connectionString,
+  ssl: shouldUseSsl(connectionString) ? { rejectUnauthorized: false } : undefined,
 });
 
 export async function query<T extends QueryResultRow>(
