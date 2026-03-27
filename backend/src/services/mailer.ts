@@ -40,49 +40,74 @@ export async function sendQREmail(to: string, name: string, qrBase64: string): P
   await transporter.sendMail({
     from: smtpFrom,
     to,
-    subject: "Your event check-in QR code",
-    text: `Hello ${name}, show this QR code at check-in.`,
+    subject: "QR code for FOSS Hack 2026",
+    text: `Hi ${name},
+
+Please show this QR code at the time of verification at the registration desk.
+
+Reach the Campus between 9 PM to 11 PM. In case you get late, give a call:
+
+Avneesh Kumar - +91 74283 98599
+Tanmay Maheshwari - +91 93544 24599
+
+Please ensure you bring:
+- Your tech gear (laptop, charger, etc.)
+- Valid masked government ID
+- Signed undertaking
+
+Cheers,
+The FOSS Club
+Delhi Technical Campus`,
     html: `
       <div style="font-family: Arial, sans-serif; color: #1f2937; padding: 16px; line-height: 1.6;">
-        <h2 style="margin: 0 0 12px;">Hello ${name},</h2>
-        <p style="margin: 0 0 16px;">Show this QR code at check-in.</p>
+        
+        <h2 style="margin-bottom: 12px;">Hi ${name},</h2>
+
+        <p>Please show this QR code at the time of <strong>verification at the registration desk</strong>.</p>
 
         <img
           src="cid:${cid}"
           alt="QR code"
-          style="display: block; max-width: 280px; width: 100%; height: auto; border: 1px solid #e5e7eb; border-radius: 12px; margin-bottom: 20px;"
+          style="display: block; max-width: 280px; width: 100%; height: auto; border: 1px solid #e5e7eb; border-radius: 12px; margin: 20px 0;"
         />
 
-        <h2 style="margin-bottom: 8px;">Event Instructions</h2>
+        <p>
+          Reach the campus between <strong>9 PM to 11 PM</strong>. In case you get late, 
+          give a call on either of these numbers:
+        </p>
 
-        <ul style="padding-left: 18px; margin-top: 8px;">
-          <li style="margin-bottom: 10px;">
-            <strong>Delhi Technical Campus Students:</strong> Please arrive at the auditorium between 
-            <strong>12:30 PM – 1:00 PM</strong>. Show your QR code at the event gate 
-            for check-in. You may have your lunch between 12:00 PM - 1:00 PM it inside the auditorium.
+        <p style="margin-left: 8px;">
+          Avneesh Kumar - +91 74283 98599<br>
+          Tanmay Maheshwari - +91 93544 24599
+        </p>
+
+        <p style="margin-top: 16px;">
+          Please ensure you bring the following <strong>mandatory items</strong>:
+        </p>
+
+        <ul style="padding-left: 18px;">
+          <li style="margin-bottom: 8px;">
+            <strong>Your Tech Gear:</strong> Laptops, chargers, extension cords, and any hardware required for your project.
           </li>
-
-          <li style="margin-bottom: 10px;">
-            <strong>Participants from outside Delhi Technical Campus:</strong> Please arrive between 
-            <strong>12:00 PM – 1:00 PM</strong>. Make sure to be on time and enter 
-            through <strong>Gate No. 2</strong>. Show your QR code 
-            for verification at the gate.
+          <li style="margin-bottom: 8px;">
+            <strong>Valid Masked Government ID:</strong> You must carry a valid masked government ID and present it during verification if you choose to stay on campus on the night of the 28th.
+          </li>
+          <li style="margin-bottom: 8px;">
+            <strong>Signed Undertaking:</strong> Please bring a physically signed copy of the Participant Undertaking and Declaration form. The undertaking has been sent to the mail of shortlisted participants.
           </li>
         </ul>
 
         <p style="margin-top: 16px;">
-          Please keep this QR code accessible on your phone
-        </p>
-
-        <p style="margin-top: 20px;">
-          Looking forward to seeing you at the event!
+          We truly appreciate the momentum you have built over the past month. 
+          Get some rest tonight, finalize your packing, and travel safe.
         </p>
 
         <p style="margin-top: 24px;">
-            Cheers,<br>
-            <a href="https://thefossclub.org" style="color:#2563eb; text-decoration:none;">The FOSS Club</a><br>
-            Delhi Technical Campus
+          Cheers,<br>
+          <a href="https://thefossclub.org" style="color:#2563eb; text-decoration:none;"><strong>The FOSS Club</strong></a><br>
+          Delhi Technical Campus
         </p>
+
       </div>
     `,
     attachments: [
