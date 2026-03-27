@@ -266,7 +266,10 @@ attendees.get("/:eventId/export.csv", async (c) => {
     throw new Error(message);
   });
 
-  const checkpointHeaders = exportData.checkpoints.map((checkpoint) => `${checkpoint.code}_checked_in_at`);
+  const checkpointHeaders = exportData.checkpoints.flatMap((checkpoint) => [
+    `${checkpoint.code}_status`,
+    `${checkpoint.code}_checked_in_at`,
+  ]);
   const headers = [
     "attendee_id",
     "name",
@@ -333,7 +336,10 @@ attendees.get("/:eventId/export.csv", async (c) => {
     attendee.emailSent,
     attendee.scans.size,
     attendee.lastCheckedInAt,
-    ...exportData.checkpoints.map((checkpoint) => attendee.scans.get(checkpoint.code) ?? null),
+    ...exportData.checkpoints.flatMap((checkpoint) => {
+      const checkedInAt = attendee.scans.get(checkpoint.code) ?? null;
+      return [checkedInAt ? "Checked in" : "Pending", checkedInAt];
+    }),
   ]);
 
   const csv = buildCsv(headers, rows);
