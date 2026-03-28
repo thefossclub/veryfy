@@ -177,9 +177,16 @@ attendees.get("/:eventId", async (c) => {
 
 attendees.post("/:eventId/resend", async (c) => {
   const eventId = c.req.param("eventId");
+  const includeSent = c.req.query("includeSent") === "true";
+  const limitValue = c.req.query("limit");
+  const limit = limitValue ? Number(limitValue) : null;
 
   if (!isUuid(eventId)) {
     return c.json({ error: "eventId must be a valid UUID" }, 400);
+  }
+
+  if (limitValue && (!Number.isInteger(limit) || (limit ?? 0) <= 0)) {
+    return c.json({ error: "limit must be a positive integer" }, 400);
   }
 
   const attendeesForEmail = await withTransaction(async (client: PoolClient) => {
@@ -193,8 +200,10 @@ attendees.post("/:eventId/resend", async (c) => {
       `SELECT id, name, email, qr_token
        FROM attendees
        WHERE event_id = $1
-       ORDER BY created_at ASC`,
-      [eventId],
+         AND ($2::boolean OR email_sent = false)
+       ORDER BY created_at ASC
+       LIMIT COALESCE($3::int, 2147483647)`,
+      [eventId, includeSent, limit],
     );
   }).catch((error: unknown) => {
     const message = error instanceof Error ? error.message : "Failed to fetch attendees";
@@ -202,13 +211,30 @@ attendees.post("/:eventId/resend", async (c) => {
   });
 
   for (const attendee of attendeesForEmail.rows) {
-    const qrBase64 = await generateQRImage({
-      attendee_id: attendee.id,
-      event_id: eventId,
-      hmac: attendee.qr_token,
-    });
+    try {
+      const qrBase64 = await generateQRImage({
+        attendee_id: attendee.id,
+        event_id: eventId,
+        hmac: attendee.qr_token,
+      });
 
-    await sendQREmail(attendee.email, attendee.name, qrBase64);
+      await sendQREmail(attendee.email, attendee.name, qrBase64);
+      await withTransaction(async (client: PoolClient) => {
+        await client.query("UPDATE attendees SET email_sent = true WHERE id = $1", [attendee.id]);
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to resend attendee email";
+      console.error("[resend] failed", { attendeeId: attendee.id, email: attendee.email, message });
+      return c.json(
+        {
+          error: "Failed to send attendee email",
+          attendeeId: attendee.id,
+          attendeeEmail: attendee.email,
+          message,
+        },
+        502,
+      );
+    }
   }
 
   return c.json({ resent: attendeesForEmail.rows.length });
